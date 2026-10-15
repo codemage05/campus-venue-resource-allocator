@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Campus Venue & Event Resource Allocator — Enterprise SaaS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin
+        src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            background: #070b14;
+            color: #e2e8f0;
+            font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+            background-image:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.14), transparent),
+                linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 36px 36px, 36px 36px;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+        }
+
+        input,
+        select,
+        textarea {
+            background: #0b1220;
+            border: 1px solid #334155;
+            border-radius: 0.6rem;
+            padding: 0.55rem 0.75rem;
+            width: 100%;
+            font-size: 0.875rem;
+            color: #f8fafc;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #818cf8;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25), inset 0 1px 2px rgba(0, 0, 0, 0.25);
+        }
+
+        input[type=checkbox] {
+            width: auto;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #070b14;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen text-slate-200 antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // Same-origin when served by Flask (http://localhost:5000/), otherwise talk to the local Flask server.
+        const API_BASE = window.location.protocol.startsWith('http') && window.location.port === '5000'
+            ? `${window.location.origin}/api`
+            : 'http://localhost:5000/api';
+
+        /* ---------- Modern Lucide SVG Icons ---------- */
+        const ICONS = {
+            calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+            check: '<path d="M20 6 9 17l-5-5"/>',
+            x: '<path d="M18 6 6 18M6 6l12 12"/>',
+            alert: '<path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3zM12 9v4M12 17h.01"/>',
+            clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+            users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+            shield: '<path d="M20 13c0 5-3.5 7.5-7.7 8.9a1 1 0 0 1-.6 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.2-2.7a1.2 1.2 0 0 1 1.6 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>',
+            kanban: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v10"/>',
+            timeline: '<path d="M3 5h8M3 12h14M3 19h10"/>',
+            term: '<path d="m4 17 6-6-6-6M12 19h8"/>',
+            plus: '<path d="M5 12h14M12 5v14"/>',
+            user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+            building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+            cpu: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/>',
+            trash: '<path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>',
+            lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+            unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+            search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+            filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+            sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+            refresh: '<path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/>',
+            arrowRight: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+            activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+            tag: '<path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/>',
+        };
+        const Icon = ({ n, s = 16, className = '' }) => (
+            <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: ICONS[n] || '' }} />
+        );
+
+        /* ---------- Domain constants ---------- */
+        const VENUES = [
+            { id: 'aud', name: 'Main Auditorium', capacity: 400, color: 'indigo', equipment: ['Dual Projectors', 'Line-Array PA', '4 Wireless Mics'] },
+            { id: 'sha', name: 'Seminar Hall A', capacity: 120, color: 'cyan', equipment: ['Smart Board', '2 Wireless Mics'] },
+            { id: 'lab', name: 'CSE AI & Robotics Lab', capacity: 60, color: 'emerald', equipment: ['30 Workstations', '4K Display'] },
+            { id: 'amp', name: 'Open Air Amphitheatre', capacity: 250, color: 'amber', equipment: ['Portable PA', 'Stage Lighting'] },
+        ];
+        const CLUBS = ['IEEE CS', 'Coding Club', 'Robotics Society', 'Cultural Club', 'Entrepreneurship Cell'];
+        const ROLES = [
+            { id: 'student', name: 'Student Coordinator', short: 'Student', icon: 'user', badge: 'Public Access', description: 'Drafts venue proposals & requests' },
+            { id: 'faculty', name: 'Faculty Advisor', short: 'Faculty', icon: 'users', badge: 'Verified Access', description: 'Reviews academic suitability & approves slots' },
+            { id: 'admin', name: 'Facilities Admin', short: 'Admin', icon: 'shield', badge: 'Full Authority', description: 'Final confirmation & campus allocation' },
+        ];
+        const ACTIVE = ['APPROVED_FACULTY', 'CONFIRMED'];
+        const STATUS = {
+            PENDING_FACULTY: { label: 'Pending Faculty', pill: 'bg-amber-500/20 text-amber-200 border-amber-500/50', bar: 'bg-amber-500/25 border-amber-400/70', head: 'text-amber-300', dot: 'bg-amber-400' },
+            APPROVED_FACULTY: { label: 'Faculty Approved', pill: 'bg-cyan-500/20 text-cyan-200 border-cyan-500/50', bar: 'bg-cyan-500/25 border-cyan-400/70', head: 'text-cyan-300', dot: 'bg-cyan-400' },
+            CONFIRMED: { label: 'Confirmed', pill: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/50', bar: 'bg-emerald-500/25 border-emerald-400/70', head: 'text-emerald-300', dot: 'bg-emerald-400' },
+            REJECTED: { label: 'Rejected', pill: 'bg-rose-500/20 text-rose-200 border-rose-500/50', bar: 'bg-rose-500/25 border-rose-400/60', head: 'text-rose-300', dot: 'bg-rose-400' },
+        };
+        const TRANSITIONS = {
+            PENDING_FACULTY: { faculty: ['APPROVED_FACULTY', 'REJECTED'] },
+            APPROVED_FACULTY: { admin: ['CONFIRMED', 'REJECTED'] },
+        };
+        const DAY_START = 8, DAY_END = 20;
+
+        const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const iso = (d) => new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+        const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+        const clock = () => new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const venueOf = (id) => VENUES.find((v) => v.id === id) || VENUES[0];
+        const TODAY = addDays(0), TOMORROW = addDays(1);
+
+        const SEED = [
+            { id: 101, title: 'AI Summit 2026', club: 'IEEE CS', venueId: 'aud', date: TODAY, start: '10:00', end: '13:00', attendees: 320, equip: ['Dual Projectors', 'Line-Array PA'], status: 'CONFIRMED', remark: 'Cleared. Keep aisles open.' },
+            { id: 102, title: 'Hackathon Kickoff', club: 'Coding Club', venueId: 'sha', date: TODAY, start: '14:00', end: '17:00', attendees: 100, equip: ['Smart Board'], status: 'APPROVED_FACULTY', remark: 'Fine by me.' },
+            { id: 103, title: 'Line Follower Workshop', club: 'Robotics Society', venueId: 'lab', date: TOMORROW, start: '11:00', end: '13:00', attendees: 45, equip: ['30 Workstations'], status: 'PENDING_FACULTY', remark: '' },
+            { id: 104, title: 'Open Mic Night', club: 'Cultural Club', venueId: 'amp', date: TODAY, start: '18:00', end: '20:00', attendees: 240, equip: ['Portable PA', 'Stage Lighting'], status: 'REJECTED', remark: 'Clashes with the evening sports meet.' },
+            { id: 105, title: 'Guest Lecture: LLM Systems', club: 'IEEE CS', venueId: 'aud', date: TOMORROW, start: '09:00', end: '11:00', attendees: 280, equip: ['Dual Projectors'], status: 'PENDING_FACULTY', remark: '' },
+        ];
+        const SEED_AUDIT = [
+            { t: '9:05 AM', msg: 'Request #101 transitioned from APPROVED_FACULTY -> CONFIRMED by Facilities Admin' },
+            { t: '8:40 AM', msg: 'Request #101 transitioned from PENDING_FACULTY -> APPROVED_FACULTY by Faculty Advisor' },
+            { t: '8:10 AM', msg: 'Request #104 transitioned from PENDING_FACULTY -> REJECTED by Faculty Advisor' },
+        ];
+        const BLANK = { title: '', club: CLUBS[0], venueId: 'aud', date: TOMORROW, start: '14:00', end: '16:00', attendees: 100, equip: [] };
+
+        /* ---------- Pure Validation Engine ---------- */
+        const findConflicts = (d, list, ignoreId) => list.filter((b) =>
+            b.id !== ignoreId && b.venueId === d.venueId && b.date === d.date && ACTIVE.includes(b.status) &&
+            toMin(d.start) < toMin(b.end) && toMin(d.end) > toMin(b.start));
+
+        const validate = (d, list) => {
+            const issues = [], v = venueOf(d.venueId);
+            if (!d.title.trim()) issues.push({ level: 'error', text: 'Event title is required.' });
+            if (!d.start || !d.end || toMin(d.end) <= toMin(d.start))
+                issues.push({ level: 'error', text: 'Chronological check failed: end time must be strictly after start time.' });
+            if (Number(d.attendees) > v.capacity)
+                issues.push({ level: 'error', text: `Capacity exceeded: ${d.attendees} attendees > ${v.name} max capacity (${v.capacity}).` });
+            if (Number(d.attendees) < 1) issues.push({ level: 'error', text: 'Expected attendees must be at least 1.' });
+            if (d.start && d.end && toMin(d.end) > toMin(d.start)) {
+                const c = findConflicts(d, list);
+                c.forEach((b) => issues.push({ level: 'error', text: `Time conflict with #${b.id} "${b.title}" (${b.start}-${b.end}, ${STATUS[b.status].label}) at ${v.name}.` }));
+                list.filter((b) => b.venueId === d.venueId && b.date === d.date && b.status === 'PENDING_FACULTY' &&
+                    toMin(d.start) < toMin(b.end) && toMin(d.end) > toMin(b.start))
+                    .forEach((b) => issues.push({ level: 'warn', text: `Overlaps pending request #${b.id} "${b.title}". Whichever is approved first claims the slot.` }));
+            }
+            return issues;
+        };
+
+        /* ---------- Stable Presentational Atoms (High Elevation & Contrast) ---------- */
+        const Pill = ({ s }) => (
+            <span className={`text-xs font-semibold tracking-wide px-2.5 py-0.5 rounded-full border inline-flex items-center gap-1.5 shadow-sm ${STATUS[s].pill}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${STATUS[s].dot}`} />
+                {STATUS[s].label}
+            </span>
+        );
+
+        const Card = ({ children, className = '' }) => (
+            <div className={`bg-slate-900/90 backdrop-blur-md border border-slate-700/70 shadow-xl shadow-black/40 rounded-2xl ${className}`}>
+                {children}
+            </div>
+        );
+
+        const Field = ({ label, children, note }) => (
+            <label className="block text-xs font-semibold text-slate-300 space-y-1.5">
+                <div className="flex justify-between items-center">
+                    <span>{label}</span>
+                    {note && <span className="text-xs text-slate-400 font-normal">{note}</span>}
+                </div>
+                {children}
+            </label>
+        );
+
+        /* =====================================================================
+           MAIN APPLICATION COMPONENT
+           ===================================================================== */
+        function App() {
+            const [role, setRole] = useState('student');
+            const [auth, setAuth] = useState({ faculty: false, admin: false });
+            const [authProfile, setAuthProfile] = useState({});
+            const [loginModal, setLoginModal] = useState(null); // 'faculty' | 'admin' | null
+            const [deleteModal, setDeleteModal] = useState(null); // booking object | null
+
+            const [page, setPage] = useState('overview'); // 'overview' | 'schedule' | 'new-request' | 'audit'
+            const [bookings, setBookings] = useState(SEED);
+            const [audit, setAudit] = useState(SEED_AUDIT);
+            const [conflictLog, setConflictLog] = useState([]);
+            const [form, setForm] = useState(BLANK);
+
+            // Filters for Schedule page
+            const [scheduleView, setScheduleView] = useState('kanban'); // 'kanban' | 'timeline'
+            const [searchQuery, setSearchQuery] = useState('');
+            const [filterVenue, setFilterVenue] = useState('all');
+            const [filterClub, setFilterClub] = useState('all');
+            const [viewDate, setViewDate] = useState(TODAY);
+
+            const [remarks, setRemarks] = useState({});
+            const [notice, setNotice] = useState(null);
+            const [online, setOnline] = useState(null);
+
+            // Synchronize initial state from Flask API
+            useEffect(() => {
+                fetch(`${API_BASE}/state`)
+                    .then((res) => res.ok ? res.json() : Promise.reject())
+                    .then((data) => {
+                        setBookings(data.bookings || []);
+                        setAudit(data.audit || []);
+                        setConflictLog(data.conflictLog || []);
+                        setOnline(true);
+                    })
+                    .catch(() => {
+                        setOnline(false);
+                        console.warn('Flask backend unreachable — running in local fallback mode.');
+                    });
+            }, []);
+
+            const pushAudit = (msg) => setAudit((a) => [{ t: clock(), msg }, ...a]);
+            const pushConflict = (msg) => setConflictLog((c) => [{ t: clock(), msg }, ...c]);
+            const flash = (r, okMsg) => setNotice(r.ok ? { ok: true, text: okMsg } : { ok: false, text: r.error });
+
+            /* ---------- Role & Authentication Handling ---------- */
+            const requestRoleSwitch = (targetRoleId) => {
+                if (targetRoleId === 'student') {
+                    setRole('student');
+                    setNotice(null);
+                    return;
+                }
+                if (auth[targetRoleId]) {
+                    setRole(targetRoleId);
+                    setNotice(null);
+                } else {
+                    setLoginModal(targetRoleId);
+                }
+            };
+
+            const handleLogout = () => {
+                setAuth((prev) => ({ ...prev, [role]: false }));
+                setAuthProfile((prev) => {
+                    const copy = { ...prev };
+                    delete copy[role];
+                    return copy;
+                });
+                setRole('student');
+                flash({ ok: true }, 'Signed out. Returned to Guest Student Coordinator session.');
+            };
+
+            const executeLogin = async (targetRole, email, password) => {
+                try {
+                    const res = await fetch(`${API_BASE}/auth/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role: targetRole, email, password }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.ok) {
+                        setAuth((prev) => ({ ...prev, [targetRole]: true }));
+                        setAuthProfile((prev) => ({ ...prev, [targetRole]: data }));
+                        setRole(targetRole);
+                        setLoginModal(null);
+                        flash({ ok: true }, `Authenticated as ${data.name || ROLES.find(r => r.id === targetRole).name}.`);
+                        return { ok: true };
+                    }
+                    return { ok: false, error: data.error || 'Authentication rejected' };
+                } catch (err) {
+                    // Local fallback auth
+                    const creds = {
+                        faculty: { email: 'faculty@campus.edu', pass: 'faculty123', name: 'Dr. Faculty Advisor' },
+                        admin: { email: 'admin@campus.edu', pass: 'admin123', name: 'Facilities Admin' },
+                    };
+                    const c = creds[targetRole];
+                    if (c && email.trim().toLowerCase() === c.email.toLowerCase() && password === c.pass) {
+                        setAuth((prev) => ({ ...prev, [targetRole]: true }));
+                        setAuthProfile((prev) => ({ ...prev, [targetRole]: { name: c.name, email: c.email } }));
+                        setRole(targetRole);
+                        setLoginModal(null);
+                        flash({ ok: true }, `Authenticated as ${c.name} (Local Mode).`);
+                        return { ok: true };
+                    }
+                    return { ok: false, error: 'Invalid credentials. Please verify email and password.' };
+                }
+            };
+
+            /* ---------- Remote / Local State Handlers ---------- */
+            const handleCreateBooking = async (draft) => {
+                try {
+                    const res = await fetch(`${API_BASE}/bookings`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(draft),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (data.conflictLog) setConflictLog(data.conflictLog);
+                    if (!res.ok || !data.ok) return { ok: false, error: data.error || 'Request failed' };
+                    setBookings(data.bookings);
+                    setAudit(data.audit);
+                    return { ok: true, id: data.id };
+                } catch (err) {
+                    // Local fallback
+                    const errs = validate(draft, bookings).filter((i) => i.level === 'error');
+                    if (errs.length) {
+                        if (errs.some((e) => e.text.startsWith('Time conflict')))
+                            pushConflict(`Blocked new request "${draft.title || 'Untitled'}" (${venueOf(draft.venueId).name}, ${draft.date} ${draft.start}-${draft.end}): ${errs[0].text}`);
+                        return { ok: false, error: errs[0].text };
+                    }
+                    const id = Math.max(100, ...bookings.map((b) => b.id)) + 1;
+                    setBookings((b) => [...b, { ...draft, title: draft.title.trim(), id, attendees: Number(draft.attendees), status: 'PENDING_FACULTY', remark: '' }]);
+                    pushAudit(`Request #${id} created as PENDING_FACULTY by Student Coordinator`);
+                    return { ok: true, id };
+                }
+            };
+
+            const handleTransition = async (id, to, actorRole, remark) => {
+                try {
+                    const res = await fetch(`${API_BASE}/bookings/${id}/status`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ to, role: actorRole, remark: remark || '' }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (data.conflictLog) setConflictLog(data.conflictLog);
+                    if (!res.ok || !data.ok) return { ok: false, error: data.error || 'Transition failed' };
+                    setBookings(data.bookings);
+                    setAudit(data.audit);
+                    return { ok: true };
+                } catch (err) {
+                    // Local fallback
+                    const b = bookings.find((x) => x.id === id);
+                    if (!b || !(TRANSITIONS[b.status]?.[actorRole] || []).includes(to))
+                        return { ok: false, error: `Transition ${b?.status} -> ${to} is not allowed for role '${actorRole}'.` };
+                    if (ACTIVE.includes(to)) {
+                        const c = findConflicts(b, bookings, id);
+                        if (c.length) {
+                            const msg = `Cannot move #${id} to ${to}: overlaps #${c[0].id} "${c[0].title}" (${c[0].start}-${c[0].end}).`;
+                            pushConflict(msg);
+                            return { ok: false, error: msg };
+                        }
+                    }
+                    const actor = ROLES.find((r) => r.id === actorRole).name;
+                    setBookings((list) => list.map((x) => x.id === id ? { ...x, status: to, remark: remark || x.remark } : x));
+                    pushAudit(`Request #${id} transitioned from ${b.status} -> ${to} by ${actor}${remark ? ` (remark: "${remark}")` : ''}`);
+                    return { ok: true };
+                }
+            };
+
+            const handleDeleteBooking = async (id) => {
+                const b = bookings.find((x) => x.id === id);
+                if (!b) return { ok: false, error: 'Booking not found.' };
+
+                if (role === 'student' && !['PENDING_FACULTY', 'REJECTED'].includes(b.status)) {
+                    return { ok: false, error: 'Students can only withdraw pending or rejected requests.' };
+                }
+
+                try {
+                    const res = await fetch(`${API_BASE}/bookings/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ role }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || !data.ok) return { ok: false, error: data.error || 'Deletion failed.' };
+                    setBookings(data.bookings);
+                    setAudit(data.audit);
+                    if (data.conflictLog) setConflictLog(data.conflictLog);
+                    return { ok: true };
+                } catch (err) {
+                    // Local fallback
+                    setBookings((list) => list.filter((x) => x.id !== id));
+                    const actor = ROLES.find((r) => r.id === role).name;
+                    pushAudit(`Request #${id} ("${b.title}") deleted by ${actor}`);
+                    return { ok: true };
+                }
+            };
+
+            const handleResetData = async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/reset`, { method: 'POST' });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.ok) {
+                        setBookings(data.bookings);
+                        setAudit(data.audit);
+                        setConflictLog(data.conflictLog || []);
+                        flash({ ok: true }, 'Demo dataset reset to pristine state.');
+                        return;
+                    }
+                } catch (err) { }
+                setBookings(SEED);
+                setAudit(SEED_AUDIT);
+                setConflictLog([]);
+                flash({ ok: true }, 'Demo dataset reset to pristine state (local fallback).');
+            };
+
+            /* ---------- Computed Metrics & Form Helpers ---------- */
+            const activeBookingsCount = bookings.filter((b) => ACTIVE.includes(b.status)).length;
+            const pendingReviewCount = bookings.filter((b) => b.status === 'PENDING_FACULTY').length;
+            const totalHeadcount = bookings.filter((b) => ACTIVE.includes(b.status)).reduce((acc, b) => acc + (b.attendees || 0), 0);
+            const totalConflictsLogged = conflictLog.length;
+
+            const hoursBooked = (vid, date) => bookings.filter((b) => b.venueId === vid && b.date === date && ACTIVE.includes(b.status))
+                .reduce((s, b) => s + (toMin(b.end) - toMin(b.start)) / 60, 0);
+
+            const issues = useMemo(() => validate(form, bookings), [form, bookings]);
+            const hasError = issues.some((i) => i.level === 'error');
+            const targetVenue = venueOf(form.venueId);
+
+            const setFormField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+            const submitBookingForm = async () => {
+                const r = await handleCreateBooking(form);
+                flash(r, 'Request successfully submitted & queued for Faculty review.');
+                if (r.ok) {
+                    setForm({ ...BLANK, venueId: form.venueId, date: form.date });
+                    setPage('schedule');
+                }
+            };
+
+            const actOnBooking = async (b, to) => {
+                const r = await handleTransition(b.id, to, role, remarks[b.id]);
+                flash(r, `Request #${b.id} status is now ${STATUS[to].label}.`);
+                if (r.ok) setRemarks(({ [b.id]: _, ...rest }) => rest);
+            };
+
+            const confirmDeleteBooking = async () => {
+                if (!deleteModal) return;
+                const r = await handleDeleteBooking(deleteModal.id);
+                flash(r, `Request #${deleteModal.id} was permanently removed.`);
+                setDeleteModal(null);
+            };
+
+            const canDelete = (b) => {
+                if (role === 'admin' || role === 'faculty') return true;
+                if (role === 'student') return ['PENDING_FACULTY', 'REJECTED'].includes(b.status);
+                return false;
+            };
+
+            const canAct = (b) => Object.keys(TRANSITIONS[b.status] || {}).includes(role);
+
+            // Filtered bookings for Schedule page
+            const filteredBookings = useMemo(() => {
+                return bookings.filter((b) => {
+                    const matchSearch = !searchQuery.trim() ||
+                        b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        String(b.id).includes(searchQuery);
+                    const matchVenue = filterVenue === 'all' || b.venueId === filterVenue;
+                    const matchClub = filterClub === 'all' || b.club === filterClub;
+                    return matchSearch && matchVenue && matchClub;
+                });
+            }, [bookings, searchQuery, filterVenue, filterClub]);
+
+            // Timetable helpers
+            const dayBookings = filteredBookings.filter((b) => b.date === viewDate);
+            const draftOnDay = form.date === viewDate && toMin(form.end) > toMin(form.start);
+            const pos = (s, e) => {
+                const lo = DAY_START * 60, hi = DAY_END * 60, span = hi - lo;
+                const a = Math.min(hi, Math.max(lo, toMin(s))), z = Math.min(hi, Math.max(lo, toMin(e)));
+                return { left: `${((a - lo) / span) * 100}%`, width: `${((z - a) / span) * 100}%` };
+            };
+            const hours = Array.from({ length: DAY_END - DAY_START + 1 }, (_, i) => DAY_START + i);
+
+            /* ---------- Booking Card Renderer (High Contrast & Elevation) ---------- */
+            const renderBookingCard = (b) => (
+                <div key={b.id} className="group bg-slate-950/90 border border-slate-700/80 hover:border-indigo-500/50 rounded-xl p-3.5 space-y-3 transition-all duration-150 shadow-md">
+                    <div className="flex items-start justify-between gap-2">
+                        <span className="mono text-xs text-slate-300 font-semibold bg-slate-800/80 border border-slate-700/60 px-2.5 py-0.5 rounded">#{b.id}</span>
+                        <div className="flex items-center gap-1.5">
+                            <Pill s={b.status} />
+                            {canDelete(b) && (
+                                <button
+                                    onClick={() => setDeleteModal(b)}
+                                    title="Delete or withdraw request"
+                                    className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                                >
+                                    <Icon n="trash" s={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div>
+                        <div className="font-semibold text-white text-sm leading-snug group-hover:text-indigo-200 transition tracking-tight">{b.title}</div>
+                        <div className="text-xs text-slate-300 mt-1 flex flex-wrap gap-x-2 gap-y-0.5 font-medium">
+                            <span className="text-indigo-300 font-semibold">{b.club}</span>
+                            <span className="text-slate-400">•</span>
+                            <span>{venueOf(b.venueId).name}</span>
+                        </div>
+                    </div>
+
+                    <div className="mono text-xs text-slate-200 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-300 font-medium">{b.date}</span>
+                            <span className="text-white font-semibold">{b.start} – {b.end}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-slate-400 text-xs">
+                            <span>Expected Attendance:</span>
+                            <span className="text-slate-200 font-semibold">{b.attendees} pax</span>
+                        </div>
+                    </div>
+
+                    {b.equip && b.equip.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                            {b.equip.map((eq) => (
+                                <span key={eq} className="text-xs font-medium px-2 py-0.5 rounded bg-slate-800/90 text-slate-200 border border-slate-700/70">{eq}</span>
+                            ))}
+                        </div>
+                    )}
+
+                    {b.remark && (
+                        <div className="text-xs border-l-2 border-indigo-400 pl-2.5 py-1 text-slate-200 italic bg-indigo-500/10 rounded-r font-medium">
+                            "{b.remark}"
+                        </div>
+                    )}
+
+                    {canAct(b) && (
+                        <div className="space-y-2 pt-2 border-t border-slate-800">
+                            <input
+                                placeholder="Add decision remark (optional)..."
+                                value={remarks[b.id] || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setRemarks((prev) => ({ ...prev, [b.id]: val }));
+                                }}
+                                className="text-xs py-1.5"
+                            />
+                            <div className="flex gap-2">
+                                {TRANSITIONS[b.status][role].map((to) => {
+                                    const isReject = to === 'REJECTED';
+                                    return (
+                                        <button
+                                            key={to}
+                                            onClick={() => actOnBooking(b, to)}
+                                            className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-1.5 px-2.5 rounded-lg font-medium border transition shadow-sm active:scale-[0.98] ${isReject
+                                                ? 'border-rose-500/60 text-rose-100 bg-gradient-to-b from-rose-500/25 to-rose-600/30 hover:from-rose-500/35 hover:to-rose-600/40 shadow-rose-500/25'
+                                                : 'border-emerald-500/60 text-emerald-100 bg-gradient-to-b from-emerald-500/25 to-emerald-600/30 hover:from-emerald-500/35 hover:to-emerald-600/40 shadow-emerald-500/25'
+                                                }`}
+                                        >
+                                            <Icon n={isReject ? 'x' : 'check'} s={13} />
+                                            {isReject ? 'Reject' : to === 'CONFIRMED' ? 'Confirm Final' : 'Approve'}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex flex-col lg:flex-row">
+                    {/* =====================================================================
+          PERSISTENT ENTERPRISE SIDEBAR
+          ===================================================================== */}
+                    <aside className="w-full lg:w-72 bg-[#070b14]/95 backdrop-blur-xl border-r border-slate-800 flex flex-col shrink-0 lg:min-h-screen sticky top-0 z-30">
+                        {/* Brand identity */}
+                        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30">
+                                    <Icon n="building" s={20} />
+                                </div>
+                                <div>
+                                    <div className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
+                                        Campus Venue
+                                        <span className="text-xs font-semibold bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/40">SaaS</span>
+                                    </div>
+                                    <div className="text-xs text-slate-400 font-medium">Resource Allocator v2.0</div>
+                                </div>
+                            </div>
+
+                            <div
+                                className={`w-2.5 h-2.5 rounded-full ${online === null ? 'bg-slate-600' : online ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-amber-400'} animate-pulse`}
+                                title={online ? `Connected to ${API_BASE}` : 'Local fallback mode'}
+                            />
+                        </div>
+
+                        {/* User / Session Card */}
+                        <div className="p-4 m-3 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold tracking-wider text-slate-300 uppercase">Active Role</span>
+                                {role !== 'student' && auth[role] ? (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                                        <Icon n="check" s={11} /> Verified
+                                    </span>
+                                ) : (
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                                        Guest
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-200 font-semibold shadow-inner">
+                                    <Icon n={ROLES.find(r => r.id === role).icon} s={16} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold text-white truncate tracking-tight">
+                                        {authProfile[role]?.name || ROLES.find(r => r.id === role).name}
+                                    </div>
+                                    <div className="text-xs text-slate-400 font-medium truncate">
+                                        {authProfile[role]?.email || 'Student Organization Lead'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {role !== 'student' && auth[role] && (
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full mt-2 py-1.5 px-2 rounded-lg text-xs font-medium border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-rose-300 hover:bg-rose-500/10 flex items-center justify-center gap-1.5 transition"
+                                >
+                                    <Icon n="lock" s={13} /> Lock & Sign Out
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Primary Page Navigation */}
+                        <nav className="p-3 space-y-1.5 flex-1">
+                            {[
+                                { id: 'overview', label: 'Overview & Venues', icon: 'building', badge: null },
+                                { id: 'schedule', label: 'Schedule & Queue', icon: 'kanban', badge: bookings.length },
+                                { id: 'new-request', label: 'New Booking Request', icon: 'plus', badge: null },
+                                { id: 'audit', label: 'Audit & Telemetry', icon: 'term', badge: audit.length },
+                            ].map((item) => {
+                                const active = page === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => setPage(item.id)}
+                                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition ${active
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25 border border-indigo-400/30'
+                                            : 'text-slate-300 hover:text-white hover:bg-slate-900/80 border border-transparent'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <Icon n={item.icon} s={16} className={active ? 'text-white' : 'text-slate-400'} />
+                                            <span>{item.label}</span>
+                                        </div>
+                                        {item.badge !== null && (
+                                            <span className={`mono text-xs px-2 py-0.5 rounded-full font-semibold ${active ? 'bg-indigo-800 text-indigo-100' : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                                }`}>
+                                                {item.badge}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </nav>
+
+                        {/* Role Switcher Bar in Sidebar */}
+                        <div className="p-4 border-t border-slate-800 bg-slate-950/60 space-y-2">
+                            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>SWITCH WORKFLOW ROLE</span>
+                                <Icon n="shield" s={13} className="text-slate-400" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-1 bg-slate-900 p-1 rounded-xl border border-slate-700/80">
+                                {ROLES.map((r) => {
+                                    const active = role === r.id;
+                                    const isLocked = r.id !== 'student' && !auth[r.id];
+                                    return (
+                                        <button
+                                            key={r.id}
+                                            onClick={() => requestRoleSwitch(r.id)}
+                                            title={`${r.name} (${isLocked ? 'Password required' : 'Ready'})`}
+                                            className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-lg text-xs font-medium transition active:scale-[0.98] ${active
+                                                ? 'bg-gradient-to-b from-indigo-500 to-indigo-600 text-white shadow-sm shadow-indigo-500/30 border border-indigo-400/40'
+                                                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                                                }`}
+                                        >
+                                            <Icon n={r.icon} s={14} className="mb-0.5" />
+                                            <span className="truncate max-w-full text-xs font-medium">{r.short}</span>
+                                            {isLocked && !active && (
+                                                <span className="absolute top-1 right-1 text-slate-400">
+                                                    <Icon n="lock" s={10} />
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </aside>
+
+                    {/* =====================================================================
+          MAIN WORKSPACE CONTENT AREA
+          ===================================================================== */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        {/* Top bar with Breadcrumbs & Global Telemetry Status */}
+                        <header className="sticky top-0 z-20 backdrop-blur-md bg-[#070b14]/90 border-b border-slate-800 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Campus Allocator</span>
+                                <span className="text-slate-400">/</span>
+                                <h1 className="text-sm font-bold text-white tracking-tight capitalize">
+                                    {page === 'overview' && 'Overview & Venue Infrastructure'}
+                                    {page === 'schedule' && 'Event Queue & Conflict Matrix'}
+                                    {page === 'new-request' && 'New Allocation Request'}
+                                    {page === 'audit' && 'Security Audit & Conflict Telemetry'}
+                                </h1>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <span className={`text-xs px-2.5 py-1 rounded-full border mono font-medium flex items-center gap-1.5 shadow-sm ${online === null ? 'border-slate-700 text-slate-300 bg-slate-800/60' :
+                                    online ? 'border-emerald-500/50 text-emerald-200 bg-emerald-500/15' :
+                                        'border-amber-500/50 text-amber-200 bg-amber-500/15'
+                                    }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${online ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-amber-400'}`} />
+                                    {online === null ? 'Checking API…' : online ? 'Flask API Online' : 'Local Fallback Mode'}
+                                </span>
+
+                                {page !== 'new-request' && (
+                                    <button
+                                        onClick={() => setPage('new-request')}
+                                        className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg shadow-md shadow-indigo-600/25 border border-indigo-400/30 transition"
+                                    >
+                                        <Icon n="plus" s={14} /> Book Event
+                                    </button>
+                                )}
+                            </div>
+                        </header>
+
+                        {/* Global Notice / Flash Alert */}
+                        <div className="px-6 pt-4">
+                            {notice && (
+                                <div className={`flex items-start justify-between gap-3 text-xs rounded-xl border p-3.5 shadow-lg transition ${notice.ok ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-100' : 'border-rose-500/50 bg-rose-500/15 text-rose-100'
+                                    }`}>
+                                    <div className="flex items-center gap-2.5">
+                                        <Icon n={notice.ok ? 'check' : 'alert'} s={16} className="shrink-0" />
+                                        <span className="font-medium text-xs">{notice.text}</span>
+                                    </div>
+                                    <button onClick={() => setNotice(null)} className="p-1 hover:opacity-75"><Icon n="x" s={14} /></button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Main Routed Page Container */}
+                        <main className="p-6 flex-1 space-y-6">
+                            {/* =================================================================
+              PAGE 1: OVERVIEW & VENUES (DASHBOARD)
+              ================================================================= */}
+                            {page === 'overview' && (
+                                <div className="space-y-6">
+                                    {/* Top KPI Metric Cards */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <Card className="p-5 space-y-1.5 border-l-4 border-l-emerald-500">
+                                            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                                <span>ACTIVE BOOKINGS</span>
+                                                <Icon n="calendar" s={16} className="text-emerald-400" />
+                                            </div>
+                                            <div className="mono text-3xl font-bold text-white tracking-tight">{activeBookingsCount}</div>
+                                            <div className="text-xs text-slate-300 font-medium">Confirmed or faculty-approved slots</div>
+                                        </Card>
+
+                                        <Card className="p-5 space-y-1.5 border-l-4 border-l-amber-500">
+                                            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                                <span>PENDING FACULTY REVIEW</span>
+                                                <Icon n="users" s={16} className="text-amber-400" />
+                                            </div>
+                                            <div className="mono text-3xl font-bold text-amber-300 tracking-tight">{pendingReviewCount}</div>
+                                            <div className="text-xs text-slate-300 font-medium">Awaiting faculty verification</div>
+                                        </Card>
+
+                                        <Card className="p-5 space-y-1.5 border-l-4 border-l-indigo-500">
+                                            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                                <span>HEADCOUNT SCHEDULED</span>
+                                                <Icon n="users" s={16} className="text-indigo-400" />
+                                            </div>
+                                            <div className="mono text-3xl font-bold text-indigo-300 tracking-tight">{totalHeadcount.toLocaleString()}</div>
+                                            <div className="text-xs text-slate-300 font-medium">Total attendees for active events</div>
+                                        </Card>
+
+                                        <Card className="p-5 space-y-1.5 border-l-4 border-l-rose-500">
+                                            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                                                <span>BLOCKED CONFLICTS</span>
+                                                <Icon n="alert" s={16} className="text-rose-400" />
+                                            </div>
+                                            <div className="mono text-3xl font-bold text-rose-300 tracking-tight">{totalConflictsLogged}</div>
+                                            <div className="text-xs text-slate-300 font-medium">Clashes stopped by validation engine</div>
+                                        </Card>
+                                    </div>
+
+                                    {/* Spacious Venue Infrastructure Catalog */}
+                                    <div className="space-y-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-3">
+                                            <div>
+                                                <h2 className="text-base font-bold text-white tracking-tight">Campus Venue Infrastructure</h2>
+                                                <p className="text-xs text-slate-300 font-medium">Real-time daily capacity, AV equipment, and utilization</p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-300 font-medium">Utilization for:</span>
+                                                <input
+                                                    type="date"
+                                                    value={viewDate}
+                                                    onChange={(e) => setViewDate(e.target.value)}
+                                                    className="text-xs py-1 px-2.5 w-auto"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                                            {VENUES.map((v) => {
+                                                const h = hoursBooked(v.id, viewDate);
+                                                const pct = Math.min(100, Math.round((h / (DAY_END - DAY_START)) * 100));
+                                                return (
+                                                    <Card key={v.id} className="p-5 flex flex-col justify-between space-y-4 hover:border-slate-600 transition shadow-lg">
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <div>
+                                                                    <div className="font-bold text-base text-white tracking-tight">{v.name}</div>
+                                                                    <span className="mono text-xs text-slate-400 uppercase font-medium">{v.id.toUpperCase()} • Ground Campus</span>
+                                                                </div>
+                                                                <span className="mono text-xs px-2.5 py-1 rounded-md bg-indigo-500/20 text-indigo-200 border border-indigo-500/40 font-semibold flex items-center gap-1 shadow-sm">
+                                                                    <Icon n="users" s={13} /> {v.capacity}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="space-y-1.5">
+                                                                <span className="text-xs text-slate-300 font-semibold">Equipped With:</span>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {v.equipment.map((eq) => (
+                                                                        <span key={eq} className="text-xs font-medium px-2 py-0.5 rounded bg-slate-800/90 text-slate-200 border border-slate-700/70">
+                                                                            {eq}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-3 pt-3 border-t border-slate-800">
+                                                            <div>
+                                                                <div className="flex justify-between text-xs text-slate-300 font-medium mb-1">
+                                                                    <span>Daily Utilization ({viewDate})</span>
+                                                                    <span className="mono text-white font-semibold text-xs">{pct}%</span>
+                                                                </div>
+                                                                <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden border border-slate-700/50">
+                                                                    <div
+                                                                        className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-500 shadow-sm"
+                                                                        style={{ width: `${pct}%` }}
+                                                                    />
+                                                                </div>
+                                                                <div className="text-xs text-slate-400 mt-1.5 mono font-medium">{h.toFixed(1)}h reserved of 12h day</div>
+                                                            </div>
+
+                                                            <button
+                                                                onClick={() => {
+                                                                    setForm((f) => ({ ...f, venueId: v.id, date: viewDate }));
+                                                                    setPage('new-request');
+                                                                }}
+                                                                className="w-full py-2.5 px-3 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 hover:border-indigo-500 shadow-sm shadow-indigo-500/20 transition flex items-center justify-center gap-1.5"
+                                                            >
+                                                                <Icon n="plus" s={14} /> Book Venue
+                                                            </button>
+                                                        </div>
+                                                    </Card>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* =================================================================
+              PAGE 2: SCHEDULE & QUEUE (KANBAN & TIMETABLE)
+              ================================================================= */}
+                            {page === 'schedule' && (
+                                <div className="space-y-5">
+                                    {/* Comprehensive Filter Bar */}
+                                    <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+                                            {/* Search box */}
+                                            <div className="relative min-w-[200px] flex-1 max-w-xs">
+                                                <span className="absolute left-3 top-2.5 text-slate-400">
+                                                    <Icon n="search" s={14} />
+                                                </span>
+                                                <input
+                                                    placeholder="Search title or #ID..."
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    className="pl-8 text-xs py-1.5"
+                                                />
+                                            </div>
+
+                                            {/* Venue filter */}
+                                            <select
+                                                value={filterVenue}
+                                                onChange={(e) => setFilterVenue(e.target.value)}
+                                                className="text-xs py-1.5 w-auto font-medium"
+                                            >
+                                                <option value="all">All Venues (4)</option>
+                                                {VENUES.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                                            </select>
+
+                                            {/* Club filter */}
+                                            <select
+                                                value={filterClub}
+                                                onChange={(e) => setFilterClub(e.target.value)}
+                                                className="text-xs py-1.5 w-auto font-medium"
+                                            >
+                                                <option value="all">All Student Chapters</option>
+                                                {CLUBS.map((c) => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+
+                                        {/* View toggle (Kanban vs Timetable) */}
+                                        <div className="flex items-center gap-2">
+                                            {scheduleView === 'timeline' && (
+                                                <input
+                                                    type="date"
+                                                    value={viewDate}
+                                                    onChange={(e) => setViewDate(e.target.value)}
+                                                    className="text-xs py-1.5 w-auto font-medium"
+                                                />
+                                            )}
+                                            <div className="flex bg-[#0b1220] border border-slate-700/80 rounded-xl p-1 gap-1">
+                                                <button
+                                                    onClick={() => setScheduleView('kanban')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${scheduleView === 'kanban' ? 'bg-slate-800 text-cyan-200 border border-slate-700 shadow-sm' : 'text-slate-300 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <Icon n="kanban" s={14} /> Kanban Queue
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleView('timeline')}
+                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${scheduleView === 'timeline' ? 'bg-slate-800 text-cyan-200 border border-slate-700 shadow-sm' : 'text-slate-300 hover:text-white'
+                                                        }`}
+                                                >
+                                                    <Icon n="timeline" s={14} /> Daily Timetable
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Card>
+
+                                    {/* View Render */}
+                                    {scheduleView === 'kanban' ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+                                            {Object.keys(STATUS).map((s) => {
+                                                const colBookings = filteredBookings.filter((b) => b.status === s);
+                                                return (
+                                                    <div key={s} className="bg-slate-900/60 border border-slate-700/70 rounded-2xl p-3.5 space-y-3 shadow-md">
+                                                        <div className={`text-xs font-bold flex items-center justify-between pb-2 border-b border-slate-800 uppercase tracking-wider ${STATUS[s].head}`}>
+                                                            <span className="flex items-center gap-2">
+                                                                <span className={`w-2 h-2 rounded-full ${STATUS[s].dot}`} />
+                                                                {STATUS[s].label}
+                                                            </span>
+                                                            <span className="mono text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700 font-semibold">
+                                                                {colBookings.length}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="space-y-3">
+                                                            {colBookings.map(renderBookingCard)}
+                                                            {colBookings.length === 0 && (
+                                                                <div className="text-center py-8 px-4 border border-dashed border-slate-800 rounded-xl text-xs text-slate-400 font-medium">
+                                                                    No requests currently in {STATUS[s].label.toLowerCase()}.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        /* Full-Width Timetable Matrix (Upgraded Height for breathing room) */
+                                        <Card className="p-5 space-y-4 overflow-x-auto">
+                                            <div className="min-w-[760px] space-y-3">
+                                                {/* Hourly ruler */}
+                                                <div className="flex pl-40 text-xs font-semibold text-slate-300 mono pb-1">
+                                                    {hours.slice(0, -1).map((h) => (
+                                                        <div key={h} className="flex-1 text-left">{h}:00</div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Venue rows (Upgraded to h-16 with inner track h-12) */}
+                                                {VENUES.map((v) => (
+                                                    <div key={v.id} className="flex items-center border-t border-slate-800 h-16 py-2">
+                                                        <div className="w-40 pr-3 shrink-0">
+                                                            <div className="text-xs font-bold text-white tracking-tight">{v.name}</div>
+                                                            <div className="text-xs text-slate-400 mono font-medium">Cap: {v.capacity}</div>
+                                                        </div>
+
+                                                        <div
+                                                            className="relative flex-1 h-12 rounded-xl bg-[#0b1220] border border-slate-700/80 overflow-hidden shadow-inner"
+                                                            style={{
+                                                                backgroundImage: 'linear-gradient(90deg, #1e293b 1px, transparent 1px)',
+                                                                backgroundSize: `${100 / (DAY_END - DAY_START)}% 100%`,
+                                                            }}
+                                                        >
+                                                            {dayBookings
+                                                                .filter((b) => b.venueId === v.id && b.status !== 'REJECTED')
+                                                                .map((b) => (
+                                                                    <div
+                                                                        key={b.id}
+                                                                        title={`${b.title} (${b.start}–${b.end}, ${b.club})`}
+                                                                        style={pos(b.start, b.end)}
+                                                                        className={`absolute top-1 bottom-1 rounded-lg border text-xs px-2.5 overflow-hidden whitespace-nowrap leading-tight flex flex-col justify-center transition shadow-sm ${STATUS[b.status].bar}`}
+                                                                    >
+                                                                        <b className="font-semibold text-white truncate text-xs">#{b.id} {b.title}</b>
+                                                                        <span className="mono text-xs font-medium text-slate-200">{b.start}–{b.end}</span>
+                                                                    </div>
+                                                                ))}
+
+                                                            {role === 'student' && draftOnDay && form.venueId === v.id && (
+                                                                <div
+                                                                    style={pos(form.start, form.end)}
+                                                                    className={`absolute top-1 bottom-1 rounded-lg border-2 border-dashed text-xs px-2 flex items-center font-semibold ${hasError ? 'border-rose-400 text-rose-200 bg-rose-500/15' : 'border-indigo-400 text-indigo-200 bg-indigo-500/15'
+                                                                        }`}
+                                                                >
+                                                                    Draft: {form.start}–{form.end}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                <div className="flex flex-wrap gap-4 pt-4 border-t border-slate-800 text-xs text-slate-300 font-medium">
+                                                    {['PENDING_FACULTY', 'APPROVED_FACULTY', 'CONFIRMED'].map((s) => (
+                                                        <span key={s} className="flex items-center gap-1.5">
+                                                            <i className={`w-3 h-3 rounded-md border ${STATUS[s].bar}`} />
+                                                            {STATUS[s].label}
+                                                        </span>
+                                                    ))}
+                                                    <span className="text-slate-400 italic">Rejected requests are omitted from timetable tracks.</span>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* =================================================================
+              PAGE 3: NEW BOOKING REQUEST (DEDICATED 2-COLUMN VIEW)
+              ================================================================= */}
+                            {page === 'new-request' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                    {/* Left Column: Spacious Form */}
+                                    <Card className="lg:col-span-7 p-6 space-y-5">
+                                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                                            <div>
+                                                <h2 className="text-base font-bold text-white flex items-center gap-2 tracking-tight">
+                                                    <Icon n="plus" className="text-indigo-400" /> New Venue Booking Request
+                                                </h2>
+                                                <p className="text-xs text-slate-300 font-medium">Submit a proposal to reserve campus infrastructure</p>
+                                            </div>
+
+                                            {/* Demo presets */}
+                                            <div className="flex gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, title: 'Demo: AI Lab Overload', venueId: 'lab', attendees: 90, equip: [] })}
+                                                    className="text-xs px-2.5 py-1 rounded-lg border border-amber-500/50 text-amber-200 hover:bg-amber-500/15 font-medium transition shadow-sm"
+                                                >
+                                                    Preset: Test Overcapacity
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setForm({ ...form, title: 'Demo: Auditorium Double-Book', venueId: 'aud', date: TODAY, start: '11:00', end: '12:00', attendees: 120, equip: [] })}
+                                                    className="text-xs px-2.5 py-1 rounded-lg border border-rose-500/50 text-rose-200 hover:bg-rose-500/15 font-medium transition shadow-sm"
+                                                >
+                                                    Preset: Test Time Clash
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <Field label="Event Title" note="Required">
+                                                <input
+                                                    value={form.title}
+                                                    onChange={(e) => setFormField('title', e.target.value)}
+                                                    placeholder="e.g., Annual Hackathon 2026 Opening Ceremony"
+                                                />
+                                            </Field>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <Field label="Organizing Club / Society">
+                                                    <select value={form.club} onChange={(e) => setFormField('club', e.target.value)}>
+                                                        {CLUBS.map((c) => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                </Field>
+
+                                                <Field label="Requested Venue">
+                                                    <select
+                                                        value={form.venueId}
+                                                        onChange={(e) => setForm({ ...form, venueId: e.target.value, equip: [] })}
+                                                    >
+                                                        {VENUES.map((v) => (
+                                                            <option key={v.id} value={v.id}>{v.name} (Max: {v.capacity})</option>
+                                                        ))}
+                                                    </select>
+                                                </Field>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                <Field label="Reservation Date">
+                                                    <input
+                                                        type="date"
+                                                        value={form.date}
+                                                        onChange={(e) => setFormField('date', e.target.value)}
+                                                    />
+                                                </Field>
+
+                                                <Field label="Start Time (24h)">
+                                                    <input
+                                                        type="time"
+                                                        value={form.start}
+                                                        onChange={(e) => setFormField('start', e.target.value)}
+                                                    />
+                                                </Field>
+
+                                                <Field label="End Time (24h)">
+                                                    <input
+                                                        type="time"
+                                                        value={form.end}
+                                                        onChange={(e) => setFormField('end', e.target.value)}
+                                                    />
+                                                </Field>
+                                            </div>
+
+                                            <Field label="Expected Attendees" note={`Max venue limit: ${targetVenue.capacity}`}>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={form.attendees}
+                                                    onChange={(e) => setFormField('attendees', e.target.value)}
+                                                />
+                                            </Field>
+
+                                            <fieldset className="space-y-2 pt-1">
+                                                <legend className="text-xs font-semibold text-slate-300">Available Facility Equipment:</legend>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    {targetVenue.equipment.map((q) => (
+                                                        <label key={q} className="flex items-center gap-2.5 text-xs text-slate-200 font-medium p-2.5 rounded-lg bg-slate-950/60 border border-slate-700/80 cursor-pointer hover:border-slate-600 transition">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={form.equip.includes(q)}
+                                                                onChange={() => {
+                                                                    const exists = form.equip.includes(q);
+                                                                    setFormField('equip', exists ? form.equip.filter((x) => x !== q) : [...form.equip, q]);
+                                                                }}
+                                                            />
+                                                            <span>{q}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </fieldset>
+
+                                            <div className="pt-2">
+                                                <button
+                                                    onClick={submitBookingForm}
+                                                    disabled={hasError}
+                                                    className={`w-full py-3 px-4 rounded-xl text-sm font-semibold transition shadow-md active:scale-[0.99] ${hasError
+                                                        ? 'bg-slate-800 text-slate-400 cursor-not-allowed border border-slate-700'
+                                                        : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/40'
+                                                        }`}
+                                                >
+                                                    Submit Booking Proposal
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </Card>
+
+                                    {/* Right Column: Live Slot & Capacity Validator Preview */}
+                                    <div className="lg:col-span-5 space-y-5">
+                                        <Card className="p-5 space-y-4 border-l-4 border-l-indigo-500">
+                                            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                                                <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                                                    <Icon n="shield" className="text-indigo-400" /> Slot & Capacity Validator
+                                                </h3>
+                                                <span className="mono text-xs text-slate-400 font-medium">{targetVenue.name}</span>
+                                            </div>
+
+                                            {/* Attendance gauge */}
+                                            <div className="space-y-1.5">
+                                                <div className="flex justify-between text-xs font-medium">
+                                                    <span className="text-slate-300">Capacity Load:</span>
+                                                    <span className="mono font-semibold text-white">
+                                                        {form.attendees || 0} / {targetVenue.capacity} ({Math.round(((form.attendees || 0) / targetVenue.capacity) * 100)}%)
+                                                    </span>
+                                                </div>
+                                                <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden border border-slate-700/50">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all duration-300 shadow-sm ${Number(form.attendees) > targetVenue.capacity ? 'bg-rose-500' : 'bg-emerald-500'
+                                                            }`}
+                                                        style={{ width: `${Math.min(100, ((form.attendees || 0) / targetVenue.capacity) * 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Validation issues list */}
+                                            <div className="space-y-2 pt-2">
+                                                {issues.map((i, k) => (
+                                                    <div
+                                                        key={k}
+                                                        className={`flex gap-2.5 text-xs font-medium rounded-xl border p-3 shadow-sm ${i.level === 'error'
+                                                            ? 'border-rose-500/50 bg-rose-500/15 text-rose-100'
+                                                            : 'border-amber-500/50 bg-amber-500/15 text-amber-100'
+                                                            }`}
+                                                    >
+                                                        <Icon n="alert" s={16} className="shrink-0 mt-0.5" />
+                                                        <span>{i.text}</span>
+                                                    </div>
+                                                ))}
+
+                                                {!issues.length && (
+                                                    <div className="text-xs font-medium text-emerald-200 bg-emerald-500/15 border border-emerald-500/40 p-3 rounded-xl flex items-center gap-2.5 shadow-sm">
+                                                        <Icon n="check" s={16} className="text-emerald-400 shrink-0" />
+                                                        <span>All validation rules passed. Slot is available and within facility limits.</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+
+                                        {/* Mini Schedule for Venue/Date */}
+                                        <Card className="p-5 space-y-3">
+                                            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                                                <span className="text-xs font-bold text-white tracking-tight">Existing Allocations on {form.date}:</span>
+                                                <span className="mono text-xs text-slate-400 font-medium">{targetVenue.name}</span>
+                                            </div>
+
+                                            {bookings.filter((b) => b.venueId === form.venueId && b.date === form.date && b.status !== 'REJECTED').length === 0 ? (
+                                                <div className="text-xs text-slate-400 font-medium py-3 text-center">
+                                                    No conflicting events reserved for this day yet. All hours free.
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                                                    {bookings
+                                                        .filter((b) => b.venueId === form.venueId && b.date === form.date && b.status !== 'REJECTED')
+                                                        .map((b) => (
+                                                            <div key={b.id} className="text-xs p-2.5 rounded-lg bg-slate-950/80 border border-slate-700/80 flex items-center justify-between shadow-sm">
+                                                                <div>
+                                                                    <div className="font-semibold text-white">#{b.id} {b.title}</div>
+                                                                    <div className="text-xs text-slate-400 font-medium">{b.club}</div>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <span className="mono text-xs font-semibold text-slate-200 block mb-0.5">{b.start}–{b.end}</span>
+                                                                    <Pill s={b.status} />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            )}
+                                        </Card>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* =================================================================
+              PAGE 4: AUDIT & TELEMETRY (LOGS)
+              ================================================================= */}
+                            {page === 'audit' && (
+                                <div className="space-y-5">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <h2 className="text-base font-bold text-white tracking-tight">Security Audit & Telemetry Log</h2>
+                                            <p className="text-xs text-slate-300 font-medium">Immutable trace of every role mutation, approval, and rejected collision</p>
+                                        </div>
+
+                                        <button
+                                            onClick={handleResetData}
+                                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-200 hover:bg-slate-800 transition shadow-sm"
+                                        >
+                                            <Icon n="refresh" s={14} /> Reset Demo Dataset
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                                        {/* State Transition Audit Trail */}
+                                        <Card className="p-5 space-y-3">
+                                            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                                                <span className="text-xs font-bold text-cyan-300 flex items-center gap-2 tracking-wide uppercase">
+                                                    <Icon n="term" s={16} /> Workflow State Transitions ({audit.length})
+                                                </span>
+                                                <span className="mono text-xs text-slate-400 font-medium">Live Timestamped</span>
+                                            </div>
+
+                                            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                                                {audit.map((a, k) => (
+                                                    <div key={k} className="mono text-xs p-2.5 rounded-lg bg-slate-950/80 border border-slate-800 text-slate-200 flex items-start gap-2.5 shadow-sm">
+                                                        <span className="text-cyan-300 font-semibold shrink-0">[{a.t}]</span>
+                                                        <span className="flex-1 leading-relaxed">{a.msg}</span>
+                                                    </div>
+                                                ))}
+                                                {audit.length === 0 && (
+                                                    <div className="text-xs text-slate-400 text-center py-8">Audit trail is empty.</div>
+                                                )}
+                                            </div>
+                                        </Card>
+
+                                        {/* Blocked Conflict Collision Telemetry */}
+                                        <Card className="p-5 space-y-3">
+                                            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                                                <span className="text-xs font-bold text-amber-300 flex items-center gap-2 tracking-wide uppercase">
+                                                    <Icon n="alert" s={16} /> Blocked Collision Telemetry ({conflictLog.length})
+                                                </span>
+                                                <span className="mono text-xs text-slate-400 font-medium">Prevention Engine</span>
+                                            </div>
+
+                                            <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                                                {conflictLog.map((c, k) => (
+                                                    <div key={k} className="text-xs p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-slate-200 space-y-1 shadow-sm">
+                                                        <div className="flex items-center justify-between text-amber-200 font-semibold">
+                                                            <span>Temporal Collision Blocked</span>
+                                                            <span className="mono text-xs text-slate-400">[{c.t}]</span>
+                                                        </div>
+                                                        <div className="text-xs text-slate-300 font-medium">{c.msg}</div>
+                                                    </div>
+                                                ))}
+                                                {conflictLog.length === 0 && (
+                                                    <div className="text-center py-12 px-4 text-xs text-slate-400 font-medium">
+                                                        No conflicts recorded. All booking proposals have cleared temporal boundaries so far.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </Card>
+                                    </div>
+                                </div>
+                            )}
+                        </main>
+                    </div>
+
+                    {/* =====================================================================
+          AUTHENTICATION MODAL
+          ===================================================================== */}
+                    {loginModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                            <Card className="w-full max-w-md p-6 space-y-5 border-slate-700 bg-slate-900 shadow-2xl">
+                                <div className="flex items-start justify-between pb-3 border-b border-slate-800">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm">
+                                            <Icon n="shield" s={20} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-base font-bold text-white tracking-tight">
+                                                Authenticate as {ROLES.find(r => r.id === loginModal).name}
+                                            </h3>
+                                            <p className="text-xs text-slate-300 font-medium">Elevated role credentials required to approve or modify requests</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setLoginModal(null)} className="text-slate-400 hover:text-slate-200">
+                                        <Icon n="x" s={18} />
+                                    </button>
+                                </div>
+
+                                {/* Viva Convenience: Auto-fill Demo Credentials button */}
+                                <div className="p-3 rounded-xl bg-indigo-500/15 border border-indigo-500/40 flex items-center justify-between shadow-sm">
+                                    <div className="text-xs text-indigo-100">
+                                        <span className="font-semibold block">Academic Viva Demo?</span>
+                                        <span className="text-xs text-slate-300 font-normal">Click to fill pre-configured role credentials</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const emailInput = document.getElementById('login-email');
+                                            const passInput = document.getElementById('login-pass');
+                                            if (loginModal === 'faculty') {
+                                                if (emailInput) emailInput.value = 'faculty@campus.edu';
+                                                if (passInput) passInput.value = 'faculty123';
+                                            } else {
+                                                if (emailInput) emailInput.value = 'admin@campus.edu';
+                                                if (passInput) passInput.value = 'admin123';
+                                            }
+                                        }}
+                                        className="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-sm border border-indigo-400/30"
+                                    >
+                                        <Icon n="sparkles" s={13} /> Auto-Fill
+                                    </button>
+                                </div>
+
+                                <form
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const email = e.target.email.value;
+                                        const password = e.target.password.value;
+                                        const result = await executeLogin(loginModal, email, password);
+                                        if (!result.ok) {
+                                            const errEl = document.getElementById('login-error');
+                                            if (errEl) errEl.innerText = result.error;
+                                        }
+                                    }}
+                                    className="space-y-4"
+                                >
+                                    <div id="login-error" className="text-xs text-rose-200 font-medium empty:hidden p-2.5 rounded bg-rose-500/15 border border-rose-500/40" />
+
+                                    <Field label="Institutional Email">
+                                        <input
+                                            id="login-email"
+                                            name="email"
+                                            type="email"
+                                            placeholder={loginModal === 'faculty' ? 'faculty@campus.edu' : 'admin@campus.edu'}
+                                            required
+                                        />
+                                    </Field>
+
+                                    <Field label="Role Password">
+                                        <input
+                                            id="login-pass"
+                                            name="password"
+                                            type="password"
+                                            placeholder="••••••••"
+                                            required
+                                        />
+                                    </Field>
+
+                                    <div className="flex gap-2.5 pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setLoginModal(null)}
+                                            className="flex-1 py-2 px-3 rounded-xl text-xs font-semibold border border-slate-700 hover:bg-slate-800 text-slate-300 transition"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="flex-1 py-2 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white transition shadow-md shadow-indigo-500/25 border border-indigo-400/40 active:scale-[0.98]"
+                                        >
+                                            Sign In & Authorize
+                                        </button>
+                                    </div>
+                                </form>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* =====================================================================
+          DELETE CONFIRMATION MODAL
+          ===================================================================== */}
+                    {deleteModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                            <Card className="w-full max-w-md p-6 space-y-4 border-slate-700 bg-slate-900 shadow-2xl">
+                                <div className="flex items-center gap-3 text-rose-400 pb-2 border-b border-slate-800">
+                                    <div className="p-2 rounded-xl bg-rose-500/20 border border-rose-500/40 shadow-sm">
+                                        <Icon n="trash" s={20} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-base font-bold text-white tracking-tight">Withdraw / Delete Request #{deleteModal.id}</h3>
+                                        <span className="text-xs text-slate-300 font-medium">Permanent state removal</span>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-slate-200 space-y-2 bg-slate-950/80 p-3 rounded-xl border border-slate-700/80 shadow-sm">
+                                    <div className="font-semibold text-white text-sm">{deleteModal.title}</div>
+                                    <div className="text-slate-300 font-medium">{deleteModal.club} • {venueOf(deleteModal.venueId).name}</div>
+                                    <div className="mono text-slate-200">{deleteModal.date} • {deleteModal.start}–{deleteModal.end}</div>
+                                    <div className="pt-1"><Pill s={deleteModal.status} /></div>
+                                </div>
+
+                                <p className="text-xs text-slate-300 font-medium">
+                                    Are you sure? This action will permanently remove this booking request and immediately free up any held venue time slots for other student chapters.
+                                </p>
+
+                                <div className="flex gap-2.5 pt-2">
+                                    <button
+                                        onClick={() => setDeleteModal(null)}
+                                        className="flex-1 py-2 px-3 rounded-xl text-xs font-semibold border border-slate-700 hover:bg-slate-800 text-slate-300 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={confirmDeleteBooking}
+                                        className="flex-1 py-2 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white transition shadow-md shadow-rose-500/25 border border-rose-400/40 active:scale-[0.98]"
+                                    >
+                                        Delete Request
+                                    </button>
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+
+</html>
